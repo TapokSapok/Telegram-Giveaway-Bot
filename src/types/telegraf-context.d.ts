@@ -12,7 +12,7 @@ declare module 'telegraf' {
 			enter: Function;
 		};
 		session?: {
-			user?: User & { isAdmin: boolean };
+			user: User & { isAdmin: boolean };
 		};
 	}
 }

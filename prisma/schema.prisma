@@ -13,8 +13,8 @@ model Giveaway {
   location   GiveawayLocation @relation(fields: [locationId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   locationId BigInt
 
-  creator   User @relation("creatorRelation", fields: [creatorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  creatorId Int
+  creator   User   @relation("creatorRelation", fields: [creatorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  creatorId BigInt
 
   messageId        BigInt?
   messageText      String?
@@ -28,8 +28,19 @@ model Giveaway {
   active     Boolean @default(true)
   publicated Boolean @default(false)
 
-  createdAt DateTime  @default(now())
-  resultsAt DateTime?
+  createdAt    DateTime       @default(now())
+  resultsAt    DateTime?
+  giveawayPlay GiveawayPlay[] @relation(name: "giveawayPlay")
+}
+
+model GiveawayPlay {
+  id         Int      @id @default(autoincrement())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId     BigInt   @unique
+  giveaway   Giveaway @relation("giveawayPlay", fields: [giveawayId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  giveawayId Int      @unique
+
+  @@index([giveawayId, userId])
 }
 
 model GiveawayLocation {
@@ -37,17 +48,20 @@ model GiveawayLocation {
   type      LocationTypeEnum
   giveaways Giveaway[]
   user      User             @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId    Int
+  userId    BigInt
   title     String?
+  name      String?          @unique
 }
 
 model User {
-  id            Int                @id
+  id            BigInt             @id
   username      String?            @unique
   firstName     String
   locations     GiveawayLocation[]
   myGiveaways   Giveaway[]         @relation(name: "creatorRelation")
-  giveawayPlays Giveaway[]
+  giveawayPlays GiveawayPlay[]
+  Giveaway      Giveaway?          @relation(fields: [giveawayId], references: [id])
+  giveawayId    Int?
 }
 
 enum LocationTypeEnum {

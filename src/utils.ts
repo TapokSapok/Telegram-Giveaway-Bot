@@ -40,3 +40,15 @@ export function changeTimeZone(date: Date, timezone: string) {
 	const diff = date.getTime() - invdate.getTime();
 	return new Date(date.getTime() - diff);
 }
+
+export function sendMenu(ctx: Context) {
+	try {
+		return ctx.reply(`menu`, {
+			reply_markup: {
+				inline_keyboard: [[{ text: 'Статистика', callback_data: 'statistics' }], [{ text: 'Управление', callback_data: 'choose_location' }]],
+			},
+		});
+	} catch (error) {
+		console.error(error);
+	}
+}

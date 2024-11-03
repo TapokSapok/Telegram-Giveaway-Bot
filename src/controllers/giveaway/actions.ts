@@ -1,21 +1,8 @@
-import { Giveaway, GiveawayLocation } from '@prisma/client';
-import moment from 'moment';
-import { bot } from '../../bot';
+import { bot, infoBot } from '../../bot';
 import { BACK_TEXT, SCENES } from '../../config';
 import { prisma } from '../../index';
 import { parseActionArgs } from '../../utils';
-
-const GIVEAWAY_MAIN_TEXT = (gw: Giveaway & { location: GiveawayLocation }) => {
-	const createdAt = moment(gw.createdAt).format('HH:mm DD.MM.YYYY');
-	const resultsAt = gw.resultsAt && moment(gw.resultsAt).format('HH:mm DD.MM.YYYY');
-	const fromResults = moment(gw.resultsAt).locale('ru').fromNow(true);
-
-	return `${gw.messageText}\n\n⬇️⬇️⬇️⬇️⬇️\n\n⏺️ Текст кнопки: ${gw.buttonText}\n\n🆔 ID розыгрыша: ${gw.id}\n👥 Участников: ${gw.participantCount}\n🎁 Победителей: ${
-		gw.winnerCount
-	}\n📸 Опубликован: ${!gw.publicated ? `<b><a href="http://t.me/c/${gw.location.id}/${gw.messageId}">здесь</a></b>` : `🚫`}\n\n📅 Создан: ${createdAt}\n⏳ Итоги: ${
-		resultsAt ?? 'вручную'
-	}${gw.resultsAt ? `\n⌚️ До итогов: ${fromResults}\n🕰 Таймзона: (Europe/Moscow)` : ''}`;
-};
+import { editGwAction, GIVEAWAY_MAIN_TEXT } from './helpers';
 
 bot.action(/^active_gw:(\D+)/, async ctx => {
 	try {
@@ -42,14 +29,14 @@ bot.action(/^active_gw:(\D+)/, async ctx => {
 bot.action(/^show_gw:(.+)/, async ctx => {
 	try {
 		const gwId = parseInt(parseActionArgs(ctx)[1]);
-		const gw = await prisma.giveaway.findUnique({ where: { id: gwId } });
-		const loc = await prisma.giveawayLocation.findUnique({ where: { id: gw?.locationId } });
-		if (!gw || !loc) return await ctx.answerCbQuery('❌ Запрос устарел');
+		const gw = await prisma.giveaway.findUnique({ where: { id: gwId }, include: { location: true } });
+		if (!gw) return await ctx.answerCbQuery('❌ Запрос устарел');
 
 		const isAdmin = ctx.session?.user?.isAdmin;
 
-		return ctx.editMessageText(GIVEAWAY_MAIN_TEXT({ ...gw, location: loc }), {
+		return ctx.editMessageText(GIVEAWAY_MAIN_TEXT({ ...gw }), {
 			parse_mode: 'HTML',
+			link_preview_options: { is_disabled: true },
 			reply_markup: {
 				inline_keyboard: [
 					!gw.publicated ? [{ text: '✅ Опубликовать', callback_data: `publicate_gw:${gw.id}` }] : [],
@@ -68,37 +55,50 @@ bot.action(/^show_gw:(.+)/, async ctx => {
 	}
 });
 
-bot.action(/^edit_gw:(.+)/, async ctx => {
-	try {
-		const gwId = parseInt(parseActionArgs(ctx)[1]);
-		const gw = await prisma.giveaway.findUnique({ where: { id: gwId } });
-		const loc = await prisma.giveawayLocation.findUnique({ where: { id: gw?.locationId } });
-		if (!gw || !loc) return await ctx.answerCbQuery('❌ Запрос устарел');
-
-		console.log(gw);
-		return ctx.editMessageText(GIVEAWAY_MAIN_TEXT({ ...gw, location: loc }) + `\n\nРедактирование...`, {
-			parse_mode: 'HTML',
-			reply_markup: {
-				inline_keyboard: [
-					[{ text: '💬 Изменить текст сообщения', callback_data: `change:${gw.id}:messageText` }],
-					[{ text: '📝 Изменить текст кнопки', callback_data: `change:${gw.id}:buttonText` }],
-					[{ text: '🥇 Изменить кол-во победителей', callback_data: `change:${gw.id}:buttonText` }],
-					[{ text: `${gw.botsProtection ? '🟢 Выключить' : '🔴 Включить'} капчу`, callback_data: `change:${gw.id}:buttonText` }],
-					[{ text: `${!gw.resultsAt ? '🕕 Выбрать время итогов' : '🫶 Ручные итоги'}`, callback_data: `change:${gw.id}:resultsAt` }],
-					[{ text: BACK_TEXT, callback_data: `show_gw:${gw.id}` }],
-				],
-			},
-		});
-	} catch (error) {
-		console.error(error);
-	}
-});
-
 bot.action(/^create_gw:(.+)/, ctx => {
 	try {
 		const locId = parseInt(parseActionArgs(ctx)[1]);
 		ctx.scene.enter(SCENES.CREATE_GW, { locId });
 	} catch (error) {
 		console.error(error);
+	}
+});
+
+bot.action(/^publicate_gw:(.+)/, async ctx => {
+	try {
+		const gwId = parseInt(parseActionArgs(ctx)[1]);
+		let gw = await prisma.giveaway.findUnique({ where: { id: gwId }, include: { location: true } });
+		if (!gw) return await ctx.answerCbQuery('❌ Запрос устарел');
+
+		const message = await bot.telegram.sendMessage(String(gw.location.id), gw.messageText ?? 'o', {
+			parse_mode: 'HTML',
+			reply_markup: {
+				inline_keyboard: [[{ text: `(${0}) ${gw.buttonText}`, callback_data: `participate_gw:${gw.id}`, url: `https://t.me/${(await infoBot).username}?start=${gw.id}` }]],
+			},
+		});
+
+		console.log(message);
+
+		gw = await prisma.giveaway.update({ where: { id: gwId }, data: { publicated: true, messageId: message.message_id }, include: { location: true } });
+
+		return ctx.editMessageText('❇️ Розыгрыш опубликован!', { reply_markup: { inline_keyboard: [[{ text: BACK_TEXT, callback_data: `show_gw:${gw.id}` }]] } });
+	} catch (error) {
+		console.error(error);
+	}
+});
+
+bot.action(/^edit_gw:(.+)/, async ctx => editGwAction(ctx));
+
+bot.action(/^change_gw:(.+):(.+)/, async ctx => {
+	const args = parseActionArgs(ctx);
+	const key = args[2];
+	const gwId = parseInt(args[1]);
+	let gw = await prisma.giveaway.findUnique({ where: { id: gwId } });
+
+	if (key === 'botsProtection') {
+		gw = await prisma.giveaway.update({ where: { id: gwId }, data: { botsProtection: !gw?.botsProtection } });
+		return editGwAction(ctx);
+	} else {
+		ctx.scene.enter(SCENES.CHANGE_GW, { key, gwId, gw });
 	}
 });
