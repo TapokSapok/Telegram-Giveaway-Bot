@@ -19,26 +19,26 @@ model Giveaway {
   messageId        BigInt?
   messageText      String?
   winnerCount      Int
-  buttonText       String  @default("Участвовать")
-  botsProtection   Boolean @default(true)
-  winners          String?
-  participantCount Int     @default(0)
-  participants     User[]
+  buttonText       String            @default("Участвовать")
+  botsProtection   Boolean           @default(true)
+  participantCount Int               @default(0)
+  participants     UserParticipant[] @relation()
 
-  active     Boolean @default(true)
-  publicated Boolean @default(false)
+  active              Boolean @default(true)
+  publicated          Boolean @default(false)
+  resultsIsSummarized Boolean @default(false)
 
-  createdAt    DateTime       @default(now())
-  resultsAt    DateTime?
-  giveawayPlay GiveawayPlay[] @relation(name: "giveawayPlay")
+  createdAt DateTime  @default(now())
+  resultsAt DateTime?
 }
 
-model GiveawayPlay {
+model UserParticipant {
   id         Int      @id @default(autoincrement())
   user       User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId     BigInt   @unique
-  giveaway   Giveaway @relation("giveawayPlay", fields: [giveawayId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  giveawayId Int      @unique
+  userId     BigInt
+  giveaway   Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  giveawayId Int
+  isWinner   Boolean  @default(false)
 
   @@index([giveawayId, userId])
 }
@@ -54,14 +54,13 @@ model GiveawayLocation {
 }
 
 model User {
-  id            BigInt             @id
-  username      String?            @unique
-  firstName     String
-  locations     GiveawayLocation[]
-  myGiveaways   Giveaway[]         @relation(name: "creatorRelation")
-  giveawayPlays GiveawayPlay[]
-  Giveaway      Giveaway?          @relation(fields: [giveawayId], references: [id])
-  giveawayId    Int?
+  id             BigInt             @id
+  username       String?            @unique
+  firstName      String
+  locations      GiveawayLocation[]
+  giveaways      Giveaway[]         @relation(name: "creatorRelation")
+  participations UserParticipant[]
+  botIsBlocked   Boolean            @default(false)
 }
 
 enum LocationTypeEnum {

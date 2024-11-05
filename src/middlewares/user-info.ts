@@ -22,8 +22,9 @@ export async function userInfoMiddleware(ctx: Context, next: Function) {
 			});
 		}
 
-		if (!ctx.session) ctx.session = {};
-		ctx.session.user = { ...user, isAdmin: process.env.ADMIN_IDS?.split(',').includes(String(user.id)) ?? false };
+		if (!ctx.session) ctx.session = {} as any;
+		ctx!.session!.user = { ...user, isAdmin: process.env.ADMIN_IDS?.split(',').includes(String(user.id)) ?? false };
+
 		return next();
 	} catch (error) {
 		console.error(error);

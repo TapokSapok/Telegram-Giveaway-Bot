@@ -41,14 +41,31 @@ export function changeTimeZone(date: Date, timezone: string) {
 	return new Date(date.getTime() - diff);
 }
 
-export function sendMenu(ctx: Context) {
+export function sendMenu(ctx: Context, isReply?: boolean) {
 	try {
-		return ctx.reply(`menu`, {
+		const text = '🦖 NICE GIVEAWAY';
+		const extra = {
 			reply_markup: {
-				inline_keyboard: [[{ text: 'Статистика', callback_data: 'statistics' }], [{ text: 'Управление', callback_data: 'choose_location' }]],
+				inline_keyboard: [[{ text: '🦖 Админка', callback_data: 'adm_menu' }], [{ text: '🎛 Управление', callback_data: 'choose_location' }]],
 			},
-		});
+		} as any;
+
+		if (isReply) return ctx.reply(text, extra);
+		else return ctx.editMessageText(text, extra);
 	} catch (error) {
 		console.error(error);
 	}
+}
+
+export async function isBotInChat(ctx: Context, chatId: number) {
+	try {
+		const botInfo = await ctx.telegram.getChatMember(chatId, ctx.botInfo.id);
+		return botInfo.status === 'member' || botInfo.status === 'administrator';
+	} catch (error) {
+		return false;
+	}
+}
+
+export async function pause(ms?: number) {
+	return new Promise(r => setTimeout(r, ms));
 }

@@ -1,8 +1,10 @@
+import moment from 'moment';
 import { Scenes } from 'telegraf';
 import { prisma } from '../../..';
-import { SCENES } from '../../../config';
+import { SCENES, TZ } from '../../../config';
 import { errorReply, parseActionArgs } from '../../../utils';
-import { editGwAction } from '../helpers';
+import { editGwAction } from '../actions';
+import { parseDrawDate, updatePublicMessage } from '../helpers';
 
 export const changeGwScene = new Scenes.WizardScene(
 	SCENES.CHANGE_GW,
@@ -10,7 +12,7 @@ export const changeGwScene = new Scenes.WizardScene(
 	async ctx => {
 		try {
 			//@ts-ignore
-			const { gwId, key, gw } = ctx.scene.session.state as number;
+			let { gwId, key, gw } = ctx.scene.session.state as number;
 			// @ts-ignore
 			ctx.scene.state = { gwId, key, gw };
 
@@ -19,9 +21,18 @@ export const changeGwScene = new Scenes.WizardScene(
 			if (key === 'messageText') text = '✍️ Введи новый текст сообщения';
 			else if (key === 'buttonText') text = '✍️ Введи новый текст кнопки';
 			else if (key === 'winnerCount') text = '✍️ Введи число победителей (макс. 100)';
-			else if (key === 'resultsAt')
-				text = `📆 Отправь мне дату окончания розыгрыша.\nПоддерживаемые форматы:\n00:00 равноцееное 00:00 сегодня или используйте полную дату и время:\n00:00 31.01.2024
-`;
+			else if (key === 'resultsAt') {
+				if (gw.resultsAt) {
+					gw = await prisma.giveaway.update({ where: { id: gwId }, data: { resultsAt: null } });
+					editGwAction(ctx, gwId, true);
+					return ctx.scene.leave();
+				} else {
+					text = `📆 Отправь мне дату окончания розыгрыша.\nПоддерживаемые форматы:\n00:00 равноцееное 00:00 сегодня или используйте полную дату и время:\n00:00 31.01.2024
+					`;
+				}
+			}
+
+			ctx.answerCbQuery();
 
 			await ctx.reply(text, { reply_markup: { inline_keyboard: [[{ text: 'Отмена', callback_data: `cancel:${gwId}` }]] } });
 
@@ -34,30 +45,27 @@ export const changeGwScene = new Scenes.WizardScene(
 	async ctx => {
 		try {
 			//@ts-ignore
-			const { gwId, key, gw } = ctx.scene.state;
+			let { gwId, key, gw } = ctx.scene.state;
 
 			if (!ctx.text) return;
 
 			if (key === 'messageText' || key === 'buttonText') {
-				await prisma.giveaway.update({ where: { id: gwId }, data: { [key]: ctx.text } });
+				gw = await prisma.giveaway.update({ where: { id: gwId }, data: { [key]: ctx.text } });
+				await updatePublicMessage(gwId);
 			} else if (key === 'winnerCount') {
 				const value = parseInt(ctx.text);
 				if (!value || value > 100 || value < 1) return ctx.reply('🚫 Неверный формат');
-				await prisma.giveaway.update({ where: { id: gwId }, data: { [key]: value } });
+				gw = await prisma.giveaway.update({ where: { id: gwId }, data: { [key]: value } });
 			} else if (key === 'resultsAt') {
-				const [time, date] = ctx.text.split(' ');
-
-				// if (time) {
-				// 	if (!/^([0-1]?[0-9]|2[0-3]):[0-5][0-9]$/.exec(time)) return ctx.reply('🚫 Неверный формат времени');
-				// }
-				// if (date) {
-				// 	if (!/\d{1,2}\.\d{1,2}\.\d{2,4}/.exec(date)) return ctx.reply('🚫 Неверный формат даты');
-				// }
-				// if (!time && !date) return ctx.reply('🚫 Неверный формат всего');
-
-				// let resultsAt = moment(`${time} ${date ?? new Date().getDate()}`);
-				// console.log(resultsAt);
-				// console.log([time, date]);
+				const drawDate = parseDrawDate(ctx.text);
+				if (drawDate) {
+					const rDate = new Date(moment(drawDate).tz(TZ).toDate()).getTime();
+					const cDate = new Date(moment(gw.createdAt).tz(TZ).toDate()).getTime();
+					if (rDate <= cDate) return ctx.reply('🚫 Назад в будушее? Неверный формат');
+					gw = await prisma.giveaway.update({ where: { id: gwId }, data: { resultsAt: drawDate } });
+				} else {
+					return ctx.reply('Неверный формат даты. Используйте "ЧЧ:ММ" или "ЧЧ:ММ ДД.ММ.ГГГГ".');
+				}
 			}
 
 			editGwAction(ctx, gwId, true);
@@ -71,6 +79,7 @@ export const changeGwScene = new Scenes.WizardScene(
 
 changeGwScene.action(/^cancel:(.+)/, async ctx => {
 	const gwId = parseInt(parseActionArgs(ctx)[1]);
+	ctx.answerCbQuery();
 	ctx.scene.leave();
-	editGwAction(ctx, gwId);
+	editGwAction(ctx, gwId, true);
 });

@@ -1,18 +1,16 @@
-import { Giveaway, User } from '@prisma/client';
+import { User } from '@prisma/client';
 import 'telegraf/typings/scenes';
 
 declare module 'telegraf' {
 	interface Context {
 		scene: {
-			state: {
-				locId: number;
-				gw: Giveaway;
-			};
+			state: any;
 			leave: Function;
 			enter: Function;
+			session: any;
 		};
 		session?: {
-			user: User & { isAdmin: boolean };
-		};
+			admListPage?: number;
+		} & { user: User & { isAdmin: boolean } };
 	}
 }
