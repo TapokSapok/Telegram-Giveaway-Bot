@@ -5,6 +5,7 @@ export const SCENES = {
 	DELETE_GW: 'delete_gw',
 	DELETE_LOC: 'delete_loc',
 	ADM_CHOOSE_WINNER: 'adm_choose_winner',
+	MAILING: 'adm_mailing',
 };
 
 export const BACK_TEXT = `‹ Назад`;

@@ -1,3 +1,4 @@
+import 'dotenv/config';
 import { Context } from 'telegraf';
 
 export function getLocEmoji(locType: string) {
@@ -43,10 +44,15 @@ export function changeTimeZone(date: Date, timezone: string) {
 
 export function sendMenu(ctx: Context, isReply?: boolean) {
 	try {
+		const isAdmin = process.env.ADMIN_IDS?.split(',').includes(String(ctx?.from?.id) ?? 'asd');
 		const text = '🦖 NICE GIVEAWAY';
+
 		const extra = {
 			reply_markup: {
-				inline_keyboard: [[{ text: '🦖 Админка', callback_data: 'adm_menu' }], [{ text: '🎛 Управление', callback_data: 'choose_location' }]],
+				keyboard: [['Создать розыгрыш', 'Мои каналы', isAdmin ? 'Админка' : (undefined as any)].filter(b => b)],
+				resize_keyboard: true,
+				one_time_keyboard: true,
+				inline_keyboard: [isAdmin ? [{ text: '🦖 Админка', callback_data: 'adm_menu' }] : [], [{ text: '🎛 Управление', callback_data: 'choose_location' }]].filter(b => b),
 			},
 		} as any;
 

@@ -9,6 +9,7 @@ declare module 'telegraf' {
 			enter: Function;
 			session: any;
 		};
+
 		session?: {
 			admListPage?: number;
 		} & { user: User & { isAdmin: boolean } };

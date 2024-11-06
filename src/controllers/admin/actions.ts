@@ -1,6 +1,6 @@
 import { Context } from 'telegraf';
 import { prisma } from '../..';
-import { BACK_TEXT } from '../../config';
+import { BACK_TEXT, SCENES } from '../../config';
 import { parseActionArgs } from '../../utils';
 
 export async function admMenuAction(ctx: Context) {
@@ -22,7 +22,11 @@ export async function admMenuAction(ctx: Context) {
 
 export async function admStatsAction(ctx: Context) {
 	try {
-		return ctx.editMessageText('Статистика:\n\nВсего активных пользователей: 0\nВсего активных розыгрышей: 0\nВсего каналов: 0', {
+		const activeUsersCount = await prisma.user.count({ where: { botIsBlocked: false } });
+
+		const chatLocations = await prisma.giveawayLocation.count();
+
+		return ctx.editMessageText(`Статистика:\n\nВсего активных пользователей: ${activeUsersCount}\nВсего чатов подключено: ${chatLocations}`, {
 			reply_markup: { inline_keyboard: [[{ text: BACK_TEXT, callback_data: 'adm_menu' }]] },
 		});
 	} catch (error) {
@@ -30,11 +34,11 @@ export async function admStatsAction(ctx: Context) {
 	}
 }
 export async function admGwListAction(ctx: Context) {
-	// await prisma.giveaway.createMany({
-	// 	data: [{ creatorId: 1366955147, locationId: -1002305925841, winnerCount: 1, active: true, publicated: true }],
-	// });
-
 	try {
+		const activeGwCount = await prisma.giveaway.count({
+			where: { active: true, publicated: true, resultsIsSummarized: false },
+		});
+
 		const page = Number(parseActionArgs(ctx)[1]);
 		if (page === -1) return ctx.answerCbQuery();
 
@@ -42,12 +46,12 @@ export async function admGwListAction(ctx: Context) {
 		const pageAgws = await prisma.giveaway.findMany({
 			take: 20,
 			skip: (page - 1) * 20,
-			where: { active: true, publicated: true },
+			where: { active: true, publicated: true, resultsIsSummarized: false },
 			include: { _count: { select: { participants: true } } },
 			orderBy: { id: 'desc' },
 		});
 
-		return ctx.editMessageText(`Страница: ${page}\nВсего активных розыгрышей: ${0}\n`, {
+		return ctx.editMessageText(`Страница: ${page}\nВсего активных розыгрышей: ${activeGwCount}\n`, {
 			reply_markup: {
 				inline_keyboard: [
 					...pageAgws.map(gw => {
@@ -68,10 +72,7 @@ export async function admGwListAction(ctx: Context) {
 	}
 }
 export async function admMailingAction(ctx: Context) {
-	try {
-	} catch (error) {
-		console.error(error);
-	}
+	ctx.scene.enter(SCENES.MAILING);
 }
 
 export async function admWinnerAction(ctx: Context, otherArgs?: any[], isReply?: boolean) {

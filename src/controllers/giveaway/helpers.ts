@@ -40,6 +40,19 @@ export async function updatePublicMessage(gwId: number) {
 	try {
 		const gw = await prisma.giveaway.findUnique({ where: { id: gwId }, include: { _count: { select: { participants: true } } } });
 
+		if (!gw) return;
+		await bot.telegram.editMessageReplyMarkup(Number(gw.locationId), Number(gw.messageId), undefined, {
+			inline_keyboard: !gw.resultsIsSummarized
+				? [[{ text: `(${gw._count.participants}) ${gw.buttonText}`, url: `https://t.me/${(await infoBot).username}?start=${gw.id}` }]]
+				: (undefined as any),
+		});
+	} catch (error) {}
+}
+
+export async function sendWinMessageToChat(gwId: number) {
+	try {
+		const gw = await prisma.giveaway.findUnique({ where: { id: gwId }, include: { _count: { select: { participants: true } } } });
+
 		const winners = await prisma.userParticipant.findMany({
 			where: {
 				isWinner: true,
@@ -49,20 +62,12 @@ export async function updatePublicMessage(gwId: number) {
 		});
 
 		if (!gw) return;
-		await bot.telegram.editMessageText(
+		await bot.telegram.sendMessage(
 			Number(gw.locationId),
-			Number(gw.messageId),
-			undefined,
-			gw.messageText +
-				`\n\n〰️〰️〰️〰️〰️\n\n👤 Участников: ${gw._count.participants}\n🏅 Победители: ${winners.map(w => (w.user.username ? '@' + w.user.username : w.userId)).join(', ')}`,
-			{
-				parse_mode: 'HTML',
-				reply_markup: {
-					inline_keyboard: !gw.resultsIsSummarized
-						? [[{ text: `(${gw._count.participants}) ${gw.buttonText}`, url: `https://t.me/${(await infoBot).username}?start=${gw.id}` }]]
-						: (undefined as any),
-				},
-			}
+			`🤩 Подведены итоги розыгрыша!\n\n👤 Участников: ${gw._count.participants}\n🏅 Победители: ${
+				winners.length ? winners.map(w => (w.user.username ? '@' + w.user.username : w.userId)).join(', ') : 'нету'
+			}`,
+			{ reply_parameters: { message_id: Number(gw.messageId) } }
 		);
 	} catch (error) {}
 }

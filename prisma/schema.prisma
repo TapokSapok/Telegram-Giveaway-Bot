@@ -24,6 +24,9 @@ model Giveaway {
   participantCount Int               @default(0)
   participants     UserParticipant[] @relation()
 
+  photoFileId     String?
+  animationFileId String?
+
   active              Boolean @default(true)
   publicated          Boolean @default(false)
   resultsIsSummarized Boolean @default(false)

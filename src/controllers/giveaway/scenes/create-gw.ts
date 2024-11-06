@@ -25,8 +25,16 @@ export const createGwScene = new Scenes.WizardScene(
 	async ctx => {
 		try {
 			//@ts-ignore
+			if (!ctx.update?.message && !ctx.text) return errorReply(ctx);
+
+			//@ts-ignore
 			ctx.scene.state.gw = {
-				messageText: ctx.text,
+				//@ts-ignore
+				messageText: ctx.update?.message?.caption ?? ctx?.text,
+				//@ts-ignore
+				animationFileId: ctx.update?.message?.animation?.file_id,
+				//@ts-ignore
+				photoFileId: ctx.update?.message?.photo?.length ? ctx.update?.message?.photo[ctx.update?.message?.photo.length - 1].file_id : null,
 				creatorId: ctx.session!.user!.id,
 				locationId: ctx.scene.state.locId,
 			} as Giveaway;

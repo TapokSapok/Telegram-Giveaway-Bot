@@ -3,7 +3,7 @@ import { bot, infoBot } from '../../bot';
 import { BACK_TEXT, SCENES } from '../../config';
 import { prisma } from '../../index';
 import { isBotInChat, parseActionArgs } from '../../utils';
-import { GIVEAWAY_MAIN_TEXT, RESULTS_TEXT, updatePublicMessage } from './helpers';
+import { GIVEAWAY_MAIN_TEXT, RESULTS_TEXT, sendWinMessageToChat, updatePublicMessage } from './helpers';
 
 export async function activeGwAction(ctx: Context, locId2?: number, isReply?: boolean) {
 	try {
@@ -96,12 +96,25 @@ export async function publicateGwAction(ctx: Context) {
 			return ctx.reply('Бот не в чате');
 		}
 
-		const message = await bot.telegram.sendMessage(String(gw.location.id), gw.messageText ?? 'o', {
+		const chatId = String(gw.location.id);
+
+		const extra = {
 			parse_mode: 'HTML',
+			caption: gw.messageText,
 			reply_markup: {
 				inline_keyboard: [[{ text: `(${0}) ${gw.buttonText}`, url: `https://t.me/${(await infoBot).username}?start=${gw.id}` }]],
 			}, //  callback_data: `participate_gw:${gw.id}`,
-		});
+		} as any;
+
+		let message = null;
+
+		if (gw.animationFileId) {
+			message = await bot.telegram.sendAnimation(chatId, gw.animationFileId, extra);
+		} else if (gw.photoFileId) {
+			message = await bot.telegram.sendPhoto(chatId, gw.photoFileId, extra);
+		} else {
+			message = await bot.telegram.sendMessage(chatId, gw.messageText as string, extra);
+		}
 
 		gw = await prisma.giveaway.update({ where: { id: gwId }, data: { publicated: true, messageId: message.message_id }, include: { location: true } });
 
@@ -196,6 +209,8 @@ export async function sumGwResultsAction(ctx: Context) {
 
 		if (!isShow) {
 			await prisma.giveaway.update({ where: { id: gwId }, data: { resultsIsSummarized: true } });
+
+			sendWinMessageToChat(gwId);
 		}
 
 		ctx.answerCbQuery();
@@ -206,7 +221,7 @@ export async function sumGwResultsAction(ctx: Context) {
 			reply_markup: {
 				inline_keyboard: [
 					[
-						{ text: '🔄 Реролл', callback_data: `reroll_gw:${gwId}` },
+						// { text: '🔄 Реролл', callback_data: `reroll_gw:${gwId}` },
 						{ text: '❇️ Завершить', callback_data: `finish_gw:${gwId}` },
 					],
 					[{ text: BACK_TEXT, callback_data: `show_gw:${gwId}${admPage ? ':' + admPage : ''}` }],

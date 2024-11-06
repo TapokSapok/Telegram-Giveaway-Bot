@@ -4,20 +4,25 @@ import moment from 'moment';
 import { Scenes, session, Telegraf } from 'telegraf';
 import { prisma } from '.';
 import { BACK_TEXT, TZ } from './config';
+import { admMenuAction } from './controllers/admin/actions';
 import { admChooseWinnerScene } from './controllers/admin/scenes/choose-winner';
+import { admMailingScene } from './controllers/admin/scenes/mailing';
 import { RESULTS_TEXT, updatePublicMessage } from './controllers/giveaway/helpers';
 import { changeGwScene } from './controllers/giveaway/scenes/change-gw';
 import { createGwScene } from './controllers/giveaway/scenes/create-gw';
 import { deleteGwScene } from './controllers/giveaway/scenes/delete-gw';
 import { solveCaptchaScene } from './controllers/giveaway/scenes/solve-captcha';
+import { chooseLocationAction } from './controllers/location/actions';
 import { deleteLocScene } from './controllers/location/scenes/delete-loc';
 import { userInfoMiddleware } from './middlewares/user-info';
 import { getLocTitle, pause, sendMenu } from './utils';
 
 export const bot = new Telegraf(process.env.BOT_TOKEN as string);
-export const infoBot = bot.telegram.getMe().then(r => r);
+
+export let bInfo = null;
+export const infoBot = bInfo ?? bot.telegram.getMe().then(r => r);
 // @ts-ignore
-export const stage = new Scenes.Stage([createGwScene, solveCaptchaScene, changeGwScene, deleteGwScene, deleteLocScene, admChooseWinnerScene]);
+export const stage = new Scenes.Stage([createGwScene, solveCaptchaScene, changeGwScene, deleteGwScene, deleteLocScene, admChooseWinnerScene, admMailingScene]);
 
 bot.use(session());
 // @ts-ignore
@@ -65,13 +70,26 @@ bot.on('my_chat_member', async ctx => {
 		const chat = ctx.update.my_chat_member.chat as { id: number; title: string; username: string; type: 'channel' | 'group' | 'supergroup' | 'private' };
 		const from = ctx.update.my_chat_member.from;
 
+		const status = ctx.update.my_chat_member.new_chat_member.status;
+
 		console.log(ctx.update.my_chat_member);
+
+		if (chat.type === 'supergroup') return;
+
+		if (!from.is_bot && chat.type === 'private') {
+			if (status !== 'member') {
+				await prisma.user.update({ where: { id: chat.id }, data: { botIsBlocked: true } }).catch(() => {});
+			} else {
+				await prisma.user.update({ where: { id: chat.id }, data: { botIsBlocked: false } }).catch(() => {});
+			}
+			return;
+		}
 
 		if (!from || from.is_bot) return;
 
-		const status = ['kicked', 'left'];
+		const statuses = ['kicked', 'left'];
 
-		if (status.includes(ctx.update.my_chat_member.new_chat_member.status)) {
+		if (statuses.includes(status)) {
 			const location = await prisma.giveawayLocation.delete({ where: { id: chat.id } });
 
 			bot.telegram.sendMessage(String(location.userId), `✅ ${getLocTitle(location.type)} «${location.title}» успешно убран!`);
@@ -86,6 +104,9 @@ bot.on('my_chat_member', async ctx => {
 		console.error(error);
 	}
 });
+
+bot.hears('Мои каналы', ctx => chooseLocationAction(ctx));
+bot.hears('Админка', ctx => admMenuAction(ctx));
 
 async function main() {
 	await import('./controllers/giveaway/index');
@@ -140,7 +161,7 @@ async function winGw() {
 							reply_markup: {
 								inline_keyboard: [
 									[
-										{ text: '🔄 Реролл', callback_data: `reroll_gw:${gw.id}` },
+										// { text: '🔄 Реролл', callback_data: `reroll_gw:${gw.id}` },
 										{ text: '❇️ Завершить', callback_data: `finish_gw:${gw.id}` },
 									],
 									[{ text: BACK_TEXT, callback_data: `show_gw:${gw.id}` }],
@@ -166,9 +187,10 @@ async function winGw() {
 async function updateMessages() {
 	while (true) {
 		try {
-			const agw = await prisma.giveaway.findMany({ where: { active: true } });
+			const agw = await prisma.giveaway.findMany({ where: { active: true, resultsIsSummarized: false } });
 			for (const gw of agw) {
 				await updatePublicMessage(gw.id);
+				await pause(1000);
 			}
 
 			await pause(10000);
