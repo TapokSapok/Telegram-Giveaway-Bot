@@ -3,23 +3,27 @@ import moment from 'moment';
 import { Context } from 'telegraf';
 import { prisma } from '../..';
 import { bot, infoBot } from '../../bot';
+import { TZ } from '../../config';
+import { formatWinnerPositions, getUserName } from '../../utils';
 
 export const GIVEAWAY_MAIN_TEXT = (gw: Giveaway & { location: GiveawayLocation } & { _count: { participants: number } }) => {
-	const createdAt = moment(gw.createdAt).format('HH:mm DD.MM.YYYY');
-	const resultsAt = gw.resultsAt && moment(gw.resultsAt).format('HH:mm DD.MM.YYYY');
+	const createdAt = moment(gw.createdAt).tz(TZ).format('HH:mm DD.MM.YYYY');
+	const resultsAt = gw.resultsAt && moment(gw.resultsAt).tz(TZ).format('HH:mm DD.MM.YYYY');
 	const fromResults = moment(gw.resultsAt).locale('ru').fromNow(true);
 
 	return `${gw.messageText}\n\n〰️〰️〰️〰️〰️\n\n⏺️ Текст кнопки: ${gw.buttonText}\n\n🆔 ID розыгрыша: ${gw.id}\n📌 Канал: ${gw.location.title}\n👥 Участников: ${
 		gw._count.participants
 	}\n🎁 Победителей: ${gw.winnerCount}\n📸 Опубликован: ${gw.publicated ? `<b><a href="http://t.me/${gw.location.name}/${gw.messageId}">здесь</a></b>` : `🚫`}\n🛡 Капча: ${
 		gw.botsProtection ? '✅' : '🚫'
-	}\n\n📅 Создан: ${createdAt}\n⏳ Итоги: ${resultsAt ?? 'вручную'}${gw.resultsAt ? `\n⌚️ До итогов: ${fromResults}\n🕰 Таймзона: (Europe/Moscow)` : ''}`;
+	}\n⚙️ Проверка подписки: ${gw.checkSubscribe ? '✅' : '🚫'}\n\n📅 Создан: ${createdAt}\n⏳ Итоги: ${resultsAt ?? 'вручную'}${
+		gw.resultsAt ? `\n⌚️ До итогов: ${fromResults}\n🕰 Таймзона: (Europe/Moscow)` : ''
+	}`;
 };
 
 export function RESULTS_TEXT(gw: any, winners: any[]) {
 	return `💫 Итоги <b><a href="http://t.me/${gw?.location?.name}/${gw.messageId}">вашего</a></b> розыгрыша <code>#${gw.id}</code>\n\n👤 Участников: ${
 		gw._count.participants
-	}\n🏅 Победители: ${winners.map(w => '@' + w.user.username).join(', ')}`;
+	}\n🏅 Победители:${winners.length ? '\n\n' + winners.map((w, i) => `${i + 1}. ` + getUserName(w.user)).join('\n') : ' нету'}`;
 }
 
 export async function getGwParticipants(gwId: number) {
@@ -53,21 +57,23 @@ export async function sendWinMessageToChat(gwId: number) {
 	try {
 		const gw = await prisma.giveaway.findUnique({ where: { id: gwId }, include: { _count: { select: { participants: true } } } });
 
-		const winners = await prisma.userParticipant.findMany({
-			where: {
-				isWinner: true,
-				giveawayId: gw!.id,
-			},
-			include: { user: true },
-		});
+		const winners = formatWinnerPositions(
+			await prisma.userParticipant.findMany({
+				where: {
+					isWinner: true,
+					giveawayId: gw!.id,
+				},
+				include: { user: true },
+			})
+		);
 
 		if (!gw) return;
 		await bot.telegram.sendMessage(
 			Number(gw.locationId),
-			`🤩 Подведены итоги розыгрыша!\n\n👤 Участников: ${gw._count.participants}\n🏅 Победители: ${
-				winners.length ? winners.map(w => (w.user.username ? '@' + w.user.username : w.userId)).join(', ') : 'нету'
+			`🤩 Подведены итоги розыгрыша!\n\n👤 Участников: ${gw._count.participants}\n🏅 Победители:${
+				winners.length ? '\n\n' + winners.map((w, i) => `${i + 1}. ` + getUserName(w.user)).join('\n') : ' нету'
 			}`,
-			{ reply_parameters: { message_id: Number(gw.messageId) } }
+			{ reply_parameters: { message_id: Number(gw.messageId) }, parse_mode: 'HTML' }
 		);
 	} catch (error) {}
 }
@@ -81,13 +87,14 @@ export function parseDrawDate(input: string) {
 	if (timeOnlyRegex.test(input)) {
 		//@ts-ignore
 		const [_, hours, minutes] = input.match(timeOnlyRegex);
-		drawDate = moment().hours(hours).minutes(minutes);
+		drawDate = moment.tz(TZ).hours(hours).minutes(minutes);
 		if (moment().isAfter(drawDate)) {
 			drawDate.add(1, 'day');
 		}
 	} else if (fullDateTimeRegex.test(input)) {
 		const [_, hours, minutes, day, month, year] = input.match(fullDateTimeRegex);
-		drawDate = moment(`${day}.${month}.${year} ${hours}:${minutes}`, 'DD.MM.YYYY HH:mm');
+
+		drawDate = moment.tz(`${day}.${month}.${year} ${hours}:${minutes}`, 'DD.MM.YYYY HH:mm', TZ);
 	} else {
 		return null;
 	}

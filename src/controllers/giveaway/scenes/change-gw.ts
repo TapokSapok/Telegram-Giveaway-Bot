@@ -1,4 +1,4 @@
-import moment from 'moment';
+import moment from 'moment-timezone';
 import { Scenes } from 'telegraf';
 import { prisma } from '../../..';
 import { SCENES, TZ } from '../../../config';
@@ -59,9 +59,10 @@ export const changeGwScene = new Scenes.WizardScene(
 			} else if (key === 'resultsAt') {
 				const drawDate = parseDrawDate(ctx.text);
 				if (drawDate) {
-					const rDate = new Date(moment(drawDate).tz(TZ).toDate()).getTime();
-					const cDate = new Date(moment(gw.createdAt).tz(TZ).toDate()).getTime();
-					if (rDate <= cDate) return ctx.reply('🚫 Назад в будушее? Неверный формат');
+					const rDate = moment(drawDate).tz(TZ).valueOf();
+					const cDate = moment(gw.createdAt).tz(TZ).valueOf();
+
+					if (rDate <= cDate) return ctx.reply('🚫 Назад в будущее? Неверный формат');
 					gw = await prisma.giveaway.update({ where: { id: gwId }, data: { resultsAt: drawDate } });
 				} else {
 					return ctx.reply('Неверный формат даты. Используйте "ЧЧ:ММ" или "ЧЧ:ММ ДД.ММ.ГГГГ".');

@@ -3,7 +3,7 @@ import 'dotenv/config';
 import moment from 'moment';
 import { Scenes, session, Telegraf } from 'telegraf';
 import { prisma } from '.';
-import { BACK_TEXT, TZ } from './config';
+import { BACK_TEXT, SCENES, TZ } from './config';
 import { admMenuAction } from './controllers/admin/actions';
 import { admChooseWinnerScene } from './controllers/admin/scenes/choose-winner';
 import { admMailingScene } from './controllers/admin/scenes/mailing';
@@ -15,9 +15,15 @@ import { solveCaptchaScene } from './controllers/giveaway/scenes/solve-captcha';
 import { chooseLocationAction } from './controllers/location/actions';
 import { deleteLocScene } from './controllers/location/scenes/delete-loc';
 import { userInfoMiddleware } from './middlewares/user-info';
-import { getLocTitle, pause, sendMenu } from './utils';
+import { getLocTitle, pause, sendMenu, setWinners } from './utils';
 
 export const bot = new Telegraf(process.env.BOT_TOKEN as string);
+
+bot.telegram.setMyCommands([
+	{ command: '/menu', description: 'Меню' },
+	{ command: '/chats', description: 'Показать доступные чаты' },
+	{ command: '/adm', description: 'Админ панель' },
+]);
 
 export let bInfo = null;
 export const infoBot = bInfo ?? bot.telegram.getMe().then(r => r);
@@ -46,15 +52,12 @@ bot.start(async ctx => {
 		if (participant) return ctx.reply('🚫 Ты уже участвуешь в этом конкурсе');
 
 		if (gw.botsProtection) {
-			// ctx.scene.enter(SCENES.SOLVE_CAPTCHA);
-			console.log('капча еще не ворк');
+			ctx.scene.enter(SCENES.SOLVE_CAPTCHA, { gwId });
+			// console.log('капча еще не ворк');
 		} else {
-			// play = await prisma.giveawayPlay.create({ data: { giveawayId: gwId, userId: ctx.session?.user.id! } });
-			// ctx.reply('✅ Теперь ты участвуешь в этом конкурсе!');
+			participant = await prisma.userParticipant.create({ data: { giveawayId: gwId, userId: Number(ctx.session?.user.id!) } });
+			ctx.reply('✅ Теперь ты участвуешь в этом конкурсе!');
 		}
-
-		participant = await prisma.userParticipant.create({ data: { giveawayId: gwId, userId: Number(ctx.session?.user.id!) } });
-		ctx.reply('✅ Теперь ты участвуешь в этом конкурсе!');
 	} catch (error) {
 		console.error(error);
 		sendMenu(ctx, true);
@@ -62,7 +65,7 @@ bot.start(async ctx => {
 });
 
 bot.action('menu', ctx => {
-	sendMenu(ctx);
+	sendMenu(ctx, false);
 });
 
 bot.on('my_chat_member', async ctx => {
@@ -71,8 +74,6 @@ bot.on('my_chat_member', async ctx => {
 		const from = ctx.update.my_chat_member.from;
 
 		const status = ctx.update.my_chat_member.new_chat_member.status;
-
-		console.log(ctx.update.my_chat_member);
 
 		if (chat.type === 'supergroup') return;
 
@@ -105,8 +106,9 @@ bot.on('my_chat_member', async ctx => {
 	}
 });
 
-bot.hears('Мои каналы', ctx => chooseLocationAction(ctx));
-bot.hears('Админка', ctx => admMenuAction(ctx));
+bot.command('menu', ctx => sendMenu(ctx, true));
+bot.command('chats', ctx => chooseLocationAction(ctx, true));
+bot.command('adm', ctx => admMenuAction(ctx, true));
 
 async function main() {
 	await import('./controllers/giveaway/index');
@@ -125,33 +127,11 @@ async function winGw() {
 			for (let gw of agw) {
 				try {
 					if (!gw.resultsAt) continue;
-					const rDate = new Date(moment(gw.resultsAt).tz(TZ).toDate());
-					const cDate = new Date(moment(gw.createdAt).tz(TZ).toDate());
+					const rDate = moment(gw.resultsAt).tz(TZ).valueOf();
+					const cTime = moment().tz(TZ).valueOf();
 
-					console.log(rDate, cDate);
-					if (rDate >= cDate) {
-						console.log('GAME');
-						let winners = await prisma.userParticipant.findMany({
-							where: {
-								isWinner: true,
-								giveawayId: gw.id,
-							},
-							include: { user: true },
-						});
-
-						if (winners.length < gw.winnerCount) {
-							const otherParticipants = await prisma.userParticipant.findMany({
-								take: gw?.winnerCount - winners.length,
-								where: { giveawayId: gw.id, isWinner: false },
-								include: { user: true },
-							});
-
-							for (const p of otherParticipants) {
-								await prisma.userParticipant.update({ where: { id: p.id }, data: { isWinner: true } }).catch(er => console.log(er));
-							}
-
-							winners = [...otherParticipants, ...winners];
-						}
+					if (cTime >= rDate) {
+						const winners = await setWinners(gw);
 
 						await prisma.giveaway.update({ where: { id: gw.id }, data: { resultsIsSummarized: true } });
 
@@ -170,9 +150,6 @@ async function winGw() {
 							parse_mode: 'HTML',
 							link_preview_options: { is_disabled: true },
 						});
-						console.log(msg);
-					} else {
-						console.log(rDate >= cDate);
 					}
 				} catch (error) {
 					console.log(error);

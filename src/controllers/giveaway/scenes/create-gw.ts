@@ -2,7 +2,7 @@ import { Giveaway } from '@prisma/client';
 import moment from 'moment';
 import { Scenes } from 'telegraf';
 import { prisma } from '../../..';
-import { SCENES, TZ } from '../../../config';
+import { SCENES } from '../../../config';
 import { errorReply } from '../../../utils';
 import { showGwAction } from '../actions';
 
@@ -53,7 +53,7 @@ export const createGwScene = new Scenes.WizardScene(
 
 			ctx.scene.state.gw.winnerCount = winnerCount;
 
-			const gw = await prisma.giveaway.create({ data: { ...ctx.scene.state.gw, createdAt: moment(new Date()).tz(TZ).toDate() } });
+			const gw = await prisma.giveaway.create({ data: { ...ctx.scene.state.gw, createdAt: moment.tz('Europe/Moscow').toDate() } });
 
 			// ctx.reply('Розыгрыш создан', { reply_markup: { inline_keyboard: [[{ text: 'Продолжить', callback_data: `edit_gw:${gw.id}` }]] } });
 

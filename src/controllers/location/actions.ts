@@ -1,20 +1,28 @@
 import { Context } from 'telegraf';
 import { prisma } from '../..';
 import { BACK_TEXT } from '../../config';
-import { getLocTitle, parseActionArgs, sendMenu } from '../../utils';
+import { getLocTitle, parseActionArgs, sendMenu, sendMessage } from '../../utils';
 
-export async function chooseLocationAction(ctx: Context) {
+export async function chooseLocationAction(ctx: Context, isReply2?: boolean) {
 	try {
+		const args = parseActionArgs(ctx);
+		const isReply = args?.length >= 1 ? args[1] === 'true' : isReply2;
 		const locations = await prisma.giveawayLocation.findMany({ where: { userId: ctx.session?.user?.id } });
 
-		return ctx.editMessageText('Выбери канал или группу', {
+		const text = 'Выбери канал или группу\n\n<code>ℹ️ Что бы добавить канал/группу, добавьте бота в него.</code>';
+		const extra = {
+			parse_mode: 'HTML',
 			reply_markup: {
 				inline_keyboard: [
 					...locations.map(loc => [{ text: `${getLocTitle(loc.type)} ${loc.title ?? loc.id}`, callback_data: `location:${loc.id}` }]),
 					[{ text: BACK_TEXT, callback_data: 'menu' }],
 				],
 			},
-		});
+		} as any;
+
+		console.log('choose loc ', isReply);
+
+		return sendMessage(ctx, text, extra, isReply);
 	} catch (error) {
 		console.error(error);
 	}

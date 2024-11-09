@@ -1,7 +1,7 @@
 import { Scenes } from 'telegraf';
 import { prisma } from '../../..';
 import { SCENES } from '../../../config';
-import { errorReply, parseActionArgs } from '../../../utils';
+import { errorReply, getUserName, parseActionArgs } from '../../../utils';
 import { admMenuAction, admWinnerAction } from '../actions';
 
 export const admChooseWinnerScene = new Scenes.WizardScene(
@@ -28,14 +28,22 @@ export const admChooseWinnerScene = new Scenes.WizardScene(
 			ctx.scene.state.winners = winners;
 
 			if (type === 'add') {
-				await ctx.reply(`Введи айди либо тег участников розыгрыша (до ${gw.winnerCount}), что бы выбрать его/их победителем`, {
+				if (winners.length === gw.winnerCount) {
+					ctx.editMessageText('🚫 Больше победителей выбрать нельзя!');
+					ctx.scene.leave();
+					admWinnerAction(ctx, [null, ctx.scene.state.args[1], ctx.scene.state.args[2]], true);
+					return;
+				}
+
+				await ctx.reply(`Введи айди либо тег участника розыгрыша, и место, что бы выбрать его победителем.\n<code>через пробел</code>`, {
+					parse_mode: 'HTML',
 					reply_markup: { inline_keyboard: [[{ text: 'Отмена', callback_data: `cancel:${gwId}:${admPage}` }]] },
 				});
 			} else if (type === 'remove') {
 				await ctx.reply(
 					`${winners
-						.map((w, i) => (w.user.username ? '@' + w.user.username : w.userId))
-						.join(', ')}\n\nВведи айди либо тег, пользователя из списка выше, что бы убрать его из списка победителей`,
+						.map((w, i) => getUserName(w.user) + (w.winnerIndex ? ` - ${w.winnerIndex} место` : ''))
+						.join('\n')}\n\nВведи айди либо тег, пользователя из списка выше, что бы убрать его из списка победителей`,
 					{
 						reply_markup: { inline_keyboard: [[{ text: 'Отмена', callback_data: `cancel:${gwId}:${admPage}` }]] },
 					}
@@ -58,39 +66,38 @@ export const admChooseWinnerScene = new Scenes.WizardScene(
 
 			if (typeof ctx.text !== 'string') return ctx.reply('Неверный формат');
 
-			let res = [];
-
 			if (type === 'add') {
-				const writedParts = ctx.text?.split(' ') ?? [];
+				let [value, winnerIndex] = ctx?.text?.split(' ') as [string, number];
 
-				if (winners.length + writedParts.length > gw.winnerCount) {
+				if (winnerIndex && (winnerIndex > gw.winnerCount || winnerIndex < 1)) {
+					await ctx.reply('🚫 Нет столько мест для победителей, и место должно быть больше нуля');
 					ctx.scene.leave();
-					ctx.reply('❌ Перебор по кол-ву победителей');
-					return ctx.scene.reenter();
+					return admWinnerAction(ctx, [null, gwId, admPage], true);
 				}
+				if (value[0] === '@') value = value.slice(1, value.length);
 
-				for (let value of writedParts) {
-					if (value[0] === '@') value = value.slice(1, value.length);
-					try {
-						let participant = await prisma.userParticipant.findFirst({
-							where: {
-								OR: [{ id: parseInt(value) ? parseInt(value) : 0 }, { user: { username: value } }],
-								giveawayId: gwId,
-							},
-							include: { user: true },
-						});
-						if (participant) {
-							participant = await prisma.userParticipant.update({ where: { id: participant.id }, data: { isWinner: true }, include: { user: true } });
-							res.push('✅ ' + value);
-						} else {
-							res.push('🚫 ' + value);
-						}
-					} catch (error) {
-						console.log(error);
-					}
+				let participant = await prisma.userParticipant.findFirst({
+					where: {
+						OR: [{ user: { id: parseInt(value) ? parseInt(value) : 0 } }, { user: { username: value } }],
+						giveawayId: gwId,
+					},
+					include: { user: true },
+				});
+				if (participant) {
+					participant = await prisma.userParticipant.update({
+						where: { id: participant.id },
+						data: { isWinner: true, winnerIndex: winnerIndex ? Number(winnerIndex) : null },
+						include: { user: true },
+					});
+
+					await ctx.reply(
+						`✅ ${participant.user.username ? '@' + participant.user.username : participant.user.id} успешно выбран победителем ${winnerIndex ? `на ${winnerIndex} место` : ''}`
+					);
+				} else {
+					await ctx.reply('🚫 Не удалось пользователя среди участников');
 				}
 			} else if (type === 'remove') {
-				let value = ctx.text as string;
+				let value = ctx?.text as string;
 				if (value[0] === '@') value = value.slice(1, value.length);
 
 				try {
@@ -103,16 +110,14 @@ export const admChooseWinnerScene = new Scenes.WizardScene(
 					});
 					if (participant) {
 						participant = await prisma.userParticipant.update({ where: { id: participant.id }, data: { isWinner: false }, include: { user: true } });
-						res.push('✅ ' + value);
+						await ctx.reply(`✅ ${participant.user.username ? '@' + participant.user.username : participant.user.id} убран из списка победителей`);
 					} else {
-						res.push('🚫 ' + value);
+						await ctx.reply('🚫 Не удалось пользователя среди победителей');
 					}
 				} catch (error) {
 					console.error(error);
 				}
 			}
-
-			ctx.reply(res.join('\n') + '.');
 
 			ctx.scene.leave();
 

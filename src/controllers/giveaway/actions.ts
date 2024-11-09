@@ -2,7 +2,7 @@ import { Context } from 'telegraf';
 import { bot, infoBot } from '../../bot';
 import { BACK_TEXT, SCENES } from '../../config';
 import { prisma } from '../../index';
-import { isBotInChat, parseActionArgs } from '../../utils';
+import { formatWinnerPositions, isBotInChat, parseActionArgs, setWinners } from '../../utils';
 import { GIVEAWAY_MAIN_TEXT, RESULTS_TEXT, sendWinMessageToChat, updatePublicMessage } from './helpers';
 
 export async function activeGwAction(ctx: Context, locId2?: number, isReply?: boolean) {
@@ -38,7 +38,7 @@ export async function showGwAction(ctx: Context, otherArgs?: any[], isReply?: bo
 		const args = otherArgs ?? parseActionArgs(ctx);
 		const admPage = args?.length >= 3 ? Number(args[2]) : false;
 		const gwId = args?.length >= 2 ? parseInt(args[1]) : args[1];
-		console.log(args);
+
 		const gw = await prisma.giveaway.findUnique({ where: { id: gwId }, include: { location: true, _count: { select: { participants: true } } } });
 		if (!gw) return await ctx.answerCbQuery('❌ Запрос устарел');
 
@@ -145,6 +145,7 @@ export async function editGwAction(ctx: Context, gwId2?: number, isReply?: boole
 					[{ text: '📝 Изменить текст кнопки', callback_data: `change_gw:${gw.id}:buttonText` }],
 					[{ text: '🥇 Изменить кол-во победителей', callback_data: `change_gw:${gw.id}:winnerCount` }],
 					[{ text: `${gw.botsProtection ? '🟢 Выключить' : '🔴 Включить'} капчу`, callback_data: `change_gw:${gw.id}:botsProtection` }],
+					[{ text: `${gw.checkSubscribe ? '🟢' : '🔴'} Проверка подписки`, callback_data: `change_gw:${gw.id}:checkSubscribe` }],
 					[{ text: `${!gw.resultsAt ? '🕕 Выбрать время итогов' : '🫶 Ручные итоги'}`, callback_data: `change_gw:${gw.id}:resultsAt` }],
 					[{ text: BACK_TEXT, callback_data: `show_gw:${gw.id}` }],
 				],
@@ -185,27 +186,9 @@ export async function sumGwResultsAction(ctx: Context) {
 
 		const gw = await prisma.giveaway.findUnique({ where: { id: gwId }, include: { location: true, _count: { select: { participants: true } } } });
 		if (!gw) return ctx.reply('Нет такого розыгрыша');
-		let winners = await prisma.userParticipant.findMany({
-			where: {
-				isWinner: true,
-				giveawayId: gwId,
-			},
-			include: { user: true },
-		});
 
-		if (winners.length < gw.winnerCount && !isShow) {
-			const otherParticipants = await prisma.userParticipant.findMany({
-				take: gw?.winnerCount - winners.length,
-				where: { giveawayId: gwId, isWinner: false },
-				include: { user: true },
-			});
-
-			for (const p of otherParticipants) {
-				await prisma.userParticipant.update({ where: { id: p.id }, data: { isWinner: true } }).catch(er => console.log(er));
-			}
-
-			winners = [...otherParticipants, ...winners];
-		}
+		const ws = await setWinners(gw);
+		const winners = formatWinnerPositions(ws);
 
 		if (!isShow) {
 			await prisma.giveaway.update({ where: { id: gwId }, data: { resultsIsSummarized: true } });
@@ -213,8 +196,7 @@ export async function sumGwResultsAction(ctx: Context) {
 			sendWinMessageToChat(gwId);
 		}
 
-		ctx.answerCbQuery();
-
+		ctx.answerCbQuery().catch(() => {});
 		updatePublicMessage(gwId);
 
 		return ctx.reply(RESULTS_TEXT(gw, winners), {
@@ -240,13 +222,15 @@ export async function finishGwAction(ctx: Context) {
 		const gwId = Number(parseActionArgs(ctx)[1]);
 		const gw = await prisma.giveaway.findUnique({ where: { id: gwId }, include: { location: true, _count: { select: { participants: true } } } });
 
-		const winners = await prisma.userParticipant.findMany({
-			where: {
-				isWinner: true,
-				giveawayId: gwId,
-			},
-			include: { user: true },
-		});
+		const winners = formatWinnerPositions(
+			await prisma.userParticipant.findMany({
+				where: {
+					isWinner: true,
+					giveawayId: gwId,
+				},
+				include: { user: true },
+			})
+		);
 
 		await prisma.giveaway.update({
 			data: {

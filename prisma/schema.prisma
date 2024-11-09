@@ -16,13 +16,15 @@ model Giveaway {
   creator   User   @relation("creatorRelation", fields: [creatorId], references: [id], onDelete: Cascade, onUpdate: Cascade)
   creatorId BigInt
 
-  messageId        BigInt?
-  messageText      String?
-  winnerCount      Int
-  buttonText       String            @default("Участвовать")
-  botsProtection   Boolean           @default(true)
-  participantCount Int               @default(0)
-  participants     UserParticipant[] @relation()
+  messageId            BigInt?
+  messageText          String?
+  winnerCount          Int
+  buttonText           String            @default("Участвовать")
+  botsProtection       Boolean           @default(true)
+  participantCount     Int               @default(0)
+  participants         UserParticipant[] @relation()
+  checkSubscribe       Boolean           @default(false)
+  subscribeLocationIds Int[]
 
   photoFileId     String?
   animationFileId String?
@@ -36,12 +38,13 @@ model Giveaway {
 }
 
 model UserParticipant {
-  id         Int      @id @default(autoincrement())
-  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  userId     BigInt
-  giveaway   Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade, onUpdate: Cascade)
-  giveawayId Int
-  isWinner   Boolean  @default(false)
+  id          Int      @id @default(autoincrement())
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  userId      BigInt
+  giveaway    Giveaway @relation(fields: [giveawayId], references: [id], onDelete: Cascade, onUpdate: Cascade)
+  giveawayId  Int
+  isWinner    Boolean  @default(false)
+  winnerIndex Int?
 
   @@index([giveawayId, userId])
 }

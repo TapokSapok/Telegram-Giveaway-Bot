@@ -3,7 +3,7 @@ import { SCENES } from '../../config';
 import { parseActionArgs } from '../../utils';
 import { chooseLocationAction, locationAction } from './actions';
 
-bot.action(/^choose_location/, chooseLocationAction);
+bot.action(/^choose_location/, ctx => chooseLocationAction(ctx));
 
 bot.action(/^location:(\D+)/, ctx => locationAction(ctx));
 

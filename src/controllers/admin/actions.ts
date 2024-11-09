@@ -1,11 +1,15 @@
 import { Context } from 'telegraf';
 import { prisma } from '../..';
 import { BACK_TEXT, SCENES } from '../../config';
-import { parseActionArgs } from '../../utils';
+import { getUserName, parseActionArgs, sendMessage } from '../../utils';
 
-export async function admMenuAction(ctx: Context) {
+export async function admMenuAction(ctx: Context, isReply2?: boolean) {
 	try {
-		return ctx.editMessageText('admin menu', {
+		const args = parseActionArgs(ctx);
+		const isReply = args?.length >= 1 ? args[1] === 'true' : isReply2;
+
+		const text = 'admin menu';
+		const extra = {
 			reply_markup: {
 				inline_keyboard: [
 					[{ text: '📊 Статистика', callback_data: 'adm_stats' }],
@@ -14,7 +18,9 @@ export async function admMenuAction(ctx: Context) {
 					[{ text: BACK_TEXT, callback_data: 'menu' }],
 				],
 			},
-		});
+		} as any;
+
+		return sendMessage(ctx, text, extra, isReply);
 	} catch (error) {
 		console.error(error);
 	}
@@ -87,8 +93,8 @@ export async function admWinnerAction(ctx: Context, otherArgs?: any[], isReply?:
 		const winners = await prisma.userParticipant.findMany({ where: { giveawayId: gwId, isWinner: true }, include: { user: true } });
 
 		const text = `Выбранные победители:\n\n${winners
-			.map(w => (w.user.username ? '@' + w.user.username : w.userId))
-			.join(', ')}\n\nНажми на кнопки ниже, что бы добавить или убрать победителя`;
+			.map(w => getUserName(w.user) + (w.winnerIndex ? ` - ${w.winnerIndex} место` : ''))
+			.join('\n')}\n\nНажми на кнопки ниже, что бы добавить или убрать победителя`;
 		const extra = {
 			reply_markup: {
 				inline_keyboard: [

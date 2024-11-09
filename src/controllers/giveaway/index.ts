@@ -20,3 +20,10 @@ bot.action(/^delete_gw:(.+)/, ctx => ctx.scene.enter(SCENES.DELETE_GW, { args: p
 bot.action(/^sum_gw_results:(.+)/, ctx => sumGwResultsAction(ctx));
 
 bot.action(/^finish_gw:(.+)/, ctx => finishGwAction(ctx));
+
+bot.action(/^retry_captcha:(.+)/, ctx => {
+	ctx.answerCbQuery().catch(() => {});
+	const gwId = Number(parseActionArgs(ctx)[1]);
+	console.log(gwId);
+	ctx.scene.enter(SCENES.SOLVE_CAPTCHA, { gwId: gwId, retry: true });
+});
