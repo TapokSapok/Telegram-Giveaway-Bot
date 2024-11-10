@@ -27,6 +27,8 @@ export const solveCaptchaScene = new Scenes.WizardScene(
 		try {
 			const captchaText = ctx.scene.state.captchaText as string;
 			const gwId = ctx.scene.state.gwId as number;
+			const gw = await prisma.giveaway.findUnique({ where: { id: gwId }, include: { location: true } });
+			if (!gw) return ctx.reply('розыгрыш не найден');
 
 			if (ctx.text?.toLocaleLowerCase() !== captchaText.toLocaleLowerCase()) {
 				ctx.scene.leave();
@@ -34,7 +36,10 @@ export const solveCaptchaScene = new Scenes.WizardScene(
 			}
 
 			await prisma.userParticipant.create({ data: { giveawayId: gwId, userId: Number(ctx.session?.user.id!) } });
-			ctx.reply('✅ Теперь ты участвуешь в этом конкурсе!');
+			ctx.reply(`✅ Теперь ты участвуешь в <b><a href="http://t.me/${gw?.location?.name}/${gw.messageId}">этом</a></b> конкурсе!`, {
+				parse_mode: 'HTML',
+				link_preview_options: { is_disabled: true },
+			});
 			return ctx.scene.leave();
 		} catch (error) {
 			errorReply(ctx);

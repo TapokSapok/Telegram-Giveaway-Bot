@@ -9,7 +9,7 @@ export const addSubscriptionScene = new Scenes.WizardScene(
 	//@ts-ignore
 	async ctx => {
 		try {
-			ctx.editMessageText('Чтобы добавить канал для проверки подписки, отправьте айди канала.\n\n<code>Бот должен быть администратором!</code>', {
+			ctx.editMessageText('Чтобы добавить канал для проверки подписки, отправьте ссылку или айди канала.\n\n<code>Бот должен быть администратором!</code>', {
 				parse_mode: 'HTML',
 				reply_markup: { inline_keyboard: [[{ text: 'Отмена', callback_data: 'cancel' }]] },
 			});
@@ -22,13 +22,17 @@ export const addSubscriptionScene = new Scenes.WizardScene(
 	},
 	async ctx => {
 		try {
-			const value = parseInt(ctx?.text! ?? '');
-			if (!value)
+			let value = ctx?.text?.includes('https://t.me/') ? ctx?.text?.split('https://t.me/')[1] : parseInt(ctx?.text!);
+
+			console.log(value);
+
+			if (!value) {
 				return ctx.reply('🚫 Неверный формат', {
 					reply_markup: { inline_keyboard: [[{ text: 'Отмена', callback_data: 'cancel' }]] },
 				});
+			}
 
-			const location = await prisma.giveawayLocation.findUnique({ where: { id: value } });
+			const location = await prisma.giveawayLocation.findUnique({ where: typeof value === 'number' ? { id: value } : typeof value === 'string' ? { name: value } : { id: 0 } });
 			if (!location)
 				return ctx.reply('🚫 Такой канал не найден, попробуйте добавить бота как админа', {
 					reply_markup: { inline_keyboard: [[{ text: 'Отмена', callback_data: 'cancel' }]] },
@@ -40,7 +44,7 @@ export const addSubscriptionScene = new Scenes.WizardScene(
 				return ctx.reply('🚫 Розыгрыш не найден', {
 					reply_markup: { inline_keyboard: [[{ text: 'Отмена', callback_data: 'cancel' }]] },
 				});
-			gw = await prisma.giveaway.update({ where: { id: gwId }, data: { subscribeLocationIds: [...gw.subscribeLocationIds, value as any] } });
+			gw = await prisma.giveaway.update({ where: { id: gwId }, data: { subscribeLocationIds: [...gw.subscribeLocationIds, location.id as any] } });
 
 			ctx.scene.leave();
 			await ctx.reply('✅ Канал успешно добавлен!');

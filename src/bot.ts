@@ -50,7 +50,7 @@ bot.start(async ctx => {
 	try {
 		const gwId = parseInt(ctx.payload);
 		if (!gwId) return sendMenu(ctx, true);
-		const gw = await prisma.giveaway.findUnique({ where: { id: gwId } });
+		const gw = await prisma.giveaway.findUnique({ where: { id: gwId }, include: { location: true } });
 		if (!gw) return sendMenu(ctx, true);
 
 		let participant = await prisma.userParticipant.findFirst({
@@ -76,7 +76,10 @@ bot.start(async ctx => {
 			// console.log('капча еще не ворк');
 		} else {
 			participant = await prisma.userParticipant.create({ data: { giveawayId: gwId, userId: Number(ctx.session?.user.id!) } });
-			ctx.reply('✅ Теперь ты участвуешь в этом конкурсе!');
+			ctx.reply(`✅ Теперь ты участвуешь в <b><a href="http://t.me/${gw?.location?.name}/${gw.messageId}">этом</a></b> конкурсе!`, {
+				parse_mode: 'HTML',
+				link_preview_options: { is_disabled: true },
+			});
 		}
 	} catch (error) {
 		console.error(error);

@@ -1,4 +1,5 @@
 import { Context } from 'telegraf';
+import { ExtraReplyMessage } from 'telegraf/typings/telegram-types';
 import { prisma } from '../..';
 import { BACK_TEXT } from '../../config';
 import { getLocTitle, parseActionArgs, sendMenu, sendMessage } from '../../utils';
@@ -9,16 +10,17 @@ export async function chooseLocationAction(ctx: Context, isReply2?: boolean) {
 		const isReply = args?.length >= 1 ? args[1] === 'true' : isReply2;
 		const locations = await prisma.giveawayLocation.findMany({ where: { userId: ctx.session?.user?.id } });
 
-		const text = 'Выбери канал или группу\n\n<code>ℹ️ Что бы добавить канал/группу, добавьте бота в него.</code>';
+		const text = 'Выбери канал или группу\n\n<a href="https://t.me/giveawaybotinfo/3">ℹ️ Инструкция по добавлению канала</a>';
 		const extra = {
 			parse_mode: 'HTML',
+			link_preview_options: { is_disabled: true },
 			reply_markup: {
 				inline_keyboard: [
 					...locations.map(loc => [{ text: `${getLocTitle(loc.type)} ${loc.title ?? loc.id}`, callback_data: `location:${loc.id}` }]),
 					[{ text: BACK_TEXT, callback_data: 'menu' }],
 				],
 			},
-		} as any;
+		} as ExtraReplyMessage as any;
 
 		console.log('choose loc ', isReply);
 
