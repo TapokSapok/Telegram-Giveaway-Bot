@@ -8,6 +8,7 @@ import { admMenuAction } from './controllers/admin/actions';
 import { admChooseWinnerScene } from './controllers/admin/scenes/choose-winner';
 import { admMailingScene } from './controllers/admin/scenes/mailing';
 import { RESULTS_TEXT, updatePublicMessage } from './controllers/giveaway/helpers';
+import { addSubscriptionScene } from './controllers/giveaway/scenes/add-subscription';
 import { changeGwScene } from './controllers/giveaway/scenes/change-gw';
 import { createGwScene } from './controllers/giveaway/scenes/create-gw';
 import { deleteGwScene } from './controllers/giveaway/scenes/delete-gw';
@@ -27,8 +28,18 @@ bot.telegram.setMyCommands([
 
 export let bInfo = null;
 export const infoBot = bInfo ?? bot.telegram.getMe().then(r => r);
-// @ts-ignore
-export const stage = new Scenes.Stage([createGwScene, solveCaptchaScene, changeGwScene, deleteGwScene, deleteLocScene, admChooseWinnerScene, admMailingScene]);
+
+export const stage = new Scenes.Stage([
+	// @ts-ignore
+	createGwScene, // @ts-ignore
+	solveCaptchaScene, // @ts-ignore
+	changeGwScene, // @ts-ignore
+	deleteGwScene, // @ts-ignore
+	deleteLocScene, // @ts-ignore
+	admChooseWinnerScene, // @ts-ignore
+	admMailingScene, // @ts-ignore
+	addSubscriptionScene, // @ts-ignore
+]);
 
 bot.use(session());
 // @ts-ignore
@@ -50,6 +61,15 @@ bot.start(async ctx => {
 		});
 
 		if (participant) return ctx.reply('🚫 Ты уже участвуешь в этом конкурсе');
+
+		for (const chatId of gw.subscribeLocationIds) {
+			try {
+				const member = await ctx.telegram.getChatMember(Number(chatId), ctx.from.id);
+				if (!['member', 'administrator', 'creator'].includes(member.status)) {
+					return await ctx.reply('🚫 Вы не выполнили всех условий.');
+				}
+			} catch (error) {}
+		}
 
 		if (gw.botsProtection) {
 			ctx.scene.enter(SCENES.SOLVE_CAPTCHA, { gwId });

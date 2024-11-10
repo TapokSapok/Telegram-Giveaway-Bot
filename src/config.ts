@@ -6,6 +6,7 @@ export const SCENES = {
 	DELETE_LOC: 'delete_loc',
 	ADM_CHOOSE_WINNER: 'adm_choose_winner',
 	MAILING: 'adm_mailing',
+	ADD_SUBSCRIPTION: 'add_subscription',
 };
 
 export const BACK_TEXT = `‹ Назад`;

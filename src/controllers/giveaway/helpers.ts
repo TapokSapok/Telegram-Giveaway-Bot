@@ -15,7 +15,7 @@ export const GIVEAWAY_MAIN_TEXT = (gw: Giveaway & { location: GiveawayLocation }
 		gw._count.participants
 	}\n🎁 Победителей: ${gw.winnerCount}\n📸 Опубликован: ${gw.publicated ? `<b><a href="http://t.me/${gw.location.name}/${gw.messageId}">здесь</a></b>` : `🚫`}\n🛡 Капча: ${
 		gw.botsProtection ? '✅' : '🚫'
-	}\n⚙️ Проверка подписки: ${gw.checkSubscribe ? '✅' : '🚫'}\n\n📅 Создан: ${createdAt}\n⏳ Итоги: ${resultsAt ?? 'вручную'}${
+	}\n⚙️ Проверка подписки: ${gw.subscribeLocationIds.length ? '✅' : '🚫'}\n\n📅 Создан: ${createdAt}\n⏳ Итоги: ${resultsAt ?? 'вручную'}${
 		gw.resultsAt ? `\n⌚️ До итогов: ${fromResults}\n🕰 Таймзона: (Europe/Moscow)` : ''
 	}`;
 };

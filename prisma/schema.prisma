@@ -23,8 +23,7 @@ model Giveaway {
   botsProtection       Boolean           @default(true)
   participantCount     Int               @default(0)
   participants         UserParticipant[] @relation()
-  checkSubscribe       Boolean           @default(false)
-  subscribeLocationIds Int[]
+  subscribeLocationIds BigInt[]
 
   photoFileId     String?
   animationFileId String?

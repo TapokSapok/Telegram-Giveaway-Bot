@@ -2,7 +2,7 @@ import { Context } from 'telegraf';
 import { bot, infoBot } from '../../bot';
 import { BACK_TEXT, SCENES } from '../../config';
 import { prisma } from '../../index';
-import { formatWinnerPositions, isBotInChat, parseActionArgs, setWinners } from '../../utils';
+import { formatWinnerPositions, isBotInChat, parseActionArgs, sendMenu, sendMessage, setWinners } from '../../utils';
 import { GIVEAWAY_MAIN_TEXT, RESULTS_TEXT, sendWinMessageToChat, updatePublicMessage } from './helpers';
 
 export async function activeGwAction(ctx: Context, locId2?: number, isReply?: boolean) {
@@ -145,7 +145,7 @@ export async function editGwAction(ctx: Context, gwId2?: number, isReply?: boole
 					[{ text: '📝 Изменить текст кнопки', callback_data: `change_gw:${gw.id}:buttonText` }],
 					[{ text: '🥇 Изменить кол-во победителей', callback_data: `change_gw:${gw.id}:winnerCount` }],
 					[{ text: `${gw.botsProtection ? '🟢 Выключить' : '🔴 Включить'} капчу`, callback_data: `change_gw:${gw.id}:botsProtection` }],
-					[{ text: `${gw.checkSubscribe ? '🟢' : '🔴'} Проверка подписки`, callback_data: `change_gw:${gw.id}:checkSubscribe` }],
+					[{ text: `${gw.subscribeLocationIds.length ? '🟢' : '🔴'} Проверка подписки`, callback_data: `subscription_gw:${gw.id}` }],
 					[{ text: `${!gw.resultsAt ? '🕕 Выбрать время итогов' : '🫶 Ручные итоги'}`, callback_data: `change_gw:${gw.id}:resultsAt` }],
 					[{ text: BACK_TEXT, callback_data: `show_gw:${gw.id}` }],
 				],
@@ -243,6 +243,54 @@ export async function finishGwAction(ctx: Context) {
 			parse_mode: 'HTML',
 			link_preview_options: { is_disabled: true },
 		});
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+export async function subscriptionGwAction(ctx: Context, gwId2?: number, isReply?: boolean) {
+	try {
+		const args = parseActionArgs(ctx);
+		const gwId = args?.length >= 2 ? parseInt(args[1]) : gwId2;
+		const gw = await prisma.giveaway.findUnique({ where: { id: gwId } });
+		if (!gw) return sendMenu(ctx);
+		const locations = await prisma.giveawayLocation.findMany({ where: { OR: gw?.subscribeLocationIds.map(id => ({ id: id })) } });
+
+		const text = 'Проверка подписки';
+		const extra = {
+			reply_markup: {
+				inline_keyboard: [
+					[{ text: '➕ Добавить канал', callback_data: `add_subscription:${gw.id}` }],
+					...(locations.map(l => [{ text: '👑 ' + (l.title ?? l.name ?? l.id), callback_data: `remove_subscription:${gw.id}:${l.id}` }]) as any),
+					[{ text: BACK_TEXT, callback_data: `edit_gw:${gw.id}` }],
+				],
+			},
+		} as any;
+
+		return sendMessage(ctx, text, extra, isReply);
+	} catch (error) {
+		console.error(error);
+	}
+}
+
+export async function removeSubscriptionGwAction(ctx: Context) {
+	try {
+		const args = parseActionArgs(ctx);
+		const gwId = parseInt(args[1]);
+		const sId = parseInt(args[2]);
+		const gw = await prisma.giveaway.findUnique({ where: { id: gwId } });
+		if (!gw) return sendMenu(ctx);
+
+		await prisma.giveaway.update({
+			where: { id: gwId },
+			data: {
+				subscribeLocationIds: gw.subscribeLocationIds.filter(id => Number(id) !== sId),
+			},
+		});
+
+		ctx.answerCbQuery(`✅ канал ${sId} убран`);
+
+		return subscriptionGwAction(ctx, gwId);
 	} catch (error) {
 		console.error(error);
 	}
