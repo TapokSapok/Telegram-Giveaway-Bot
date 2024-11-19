@@ -37,6 +37,8 @@ export const admMailingScene = new Scenes.WizardScene(
 			let errCount = 0;
 			let finalCount = 0;
 
+			console.log(ctx?.from?.id, ctx?.from?.username, `разослал: ${text}`);
+
 			users.forEach(async ({ id }) => {
 				try {
 					if (animation) {
