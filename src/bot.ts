@@ -16,14 +16,13 @@ import { solveCaptchaScene } from './controllers/giveaway/scenes/solve-captcha';
 import { chooseLocationAction } from './controllers/location/actions';
 import { deleteLocScene } from './controllers/location/scenes/delete-loc';
 import { userInfoMiddleware } from './middlewares/user-info';
-import { getLocTitle, pause, sendMenu, setWinners } from './utils';
+import { getIsAdmin, getLocTitle, pause, sendMenu, setWinners } from './utils';
 
 export const bot = new Telegraf(process.env.BOT_TOKEN as string);
 
 bot.telegram.setMyCommands([
 	{ command: '/menu', description: 'Меню' },
 	{ command: '/chats', description: 'Показать доступные чаты' },
-	{ command: '/adm', description: 'Админ панель' },
 ]);
 
 export let bInfo = null;
@@ -131,7 +130,7 @@ bot.on('my_chat_member', async ctx => {
 
 bot.command('menu', ctx => sendMenu(ctx, true));
 bot.command('chats', ctx => chooseLocationAction(ctx, true));
-bot.command('adm', ctx => admMenuAction(ctx, true));
+bot.command('adm', ctx => (getIsAdmin(ctx?.from?.id) ? admMenuAction(ctx, true) : undefined));
 
 async function main() {
 	await import('./controllers/giveaway/index');

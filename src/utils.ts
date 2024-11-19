@@ -183,3 +183,8 @@ export function getUserName(user: User) {
 		return `<a href="tg://user?id=${user.id}">${user.firstName}</a>`;
 	} else return `<a href="tg://user?id=${user.id}">${user.id}</a>`;
 }
+
+export function getIsAdmin(id?: number | string) {
+	if (!id) return false;
+	return !!process.env.ADMIN_IDS?.split(',').includes(String(id));
+}

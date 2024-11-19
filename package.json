@@ -1,6 +1,7 @@
 {
 	"type": "module",
 	"scripts": {
+		"start": "tsx src/index.ts",
 		"dev": "tsx watch src/index.ts",
 		"db:generate": "drizzle-kit generate --config=drizzle.config.ts",
 		"db:migrate": "tsx src/drizzle/migrate.ts"

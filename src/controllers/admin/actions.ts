@@ -1,10 +1,11 @@
 import { Context } from 'telegraf';
 import { prisma } from '../..';
 import { BACK_TEXT, SCENES } from '../../config';
-import { getUserName, parseActionArgs, sendMessage } from '../../utils';
+import { getIsAdmin, getUserName, parseActionArgs, sendMessage } from '../../utils';
 
 export async function admMenuAction(ctx: Context, isReply2?: boolean) {
 	try {
+		if (!getIsAdmin(ctx?.from?.id)) return ctx.reply('нет доступа');
 		const args = parseActionArgs(ctx);
 		const isReply = args?.length >= 1 ? args[1] === 'true' : isReply2;
 
