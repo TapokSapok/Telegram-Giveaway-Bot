@@ -49,6 +49,7 @@ export async function locationAction(ctx: Context, locId2?: number, isReply?: bo
 				inline_keyboard: [
 					[{ text: `🏅 Активные розыгрыши`, callback_data: `active_gw:${loc.id}` }],
 					[{ text: `➕ Создать розыгрыш`, callback_data: `create_gw:${loc.id}` }],
+
 					[{ text: `🚫 Удалить ${loc.type === 'channel' ? 'канал' : 'группу'}`, callback_data: `delete_loc:${loc.id}` }],
 					[{ text: BACK_TEXT, callback_data: `choose_location:${loc.id}` }],
 				],

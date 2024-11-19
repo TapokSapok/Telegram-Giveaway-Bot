@@ -45,11 +45,13 @@ export function changeTimeZone(date: Date, timezone: string) {
 	return new Date(date.getTime() - diff);
 }
 
-export function sendMenu(ctx: Context, isReply?: boolean) {
+let startFileId = null as any;
+
+export async function sendMenu(ctx: Context, isReply?: boolean) {
 	try {
 		const isAdmin = process.env.ADMIN_IDS?.split(',').includes(String(ctx?.from?.id) ?? 'asd');
 
-		const startFileId = 'AgACAgIAAxkDAAIK1GcuIwuCvFi8vC7EWzFOIKJV7BkfAAIi5DEbyfRxSTv2kCWpc76rAQADAgADeQADNgQ';
+		// const startFileId = 'AgACAgIAAxkDAAIK1GcuIwuCvFi8vC7EWzFOIKJV7BkfAAIi5DEbyfRxSTv2kCWpc76rAQADAgADeQADNgQ';
 
 		const text = 'Добро пожаловать! С помощью этого бота вы можете провести розыгрыш в своем канале.';
 
@@ -69,7 +71,18 @@ export function sendMenu(ctx: Context, isReply?: boolean) {
 			},
 		} as any;
 
-		ctx.replyWithPhoto(startFileId, extra);
+		console.log(startFileId);
+
+		if (startFileId) {
+			await ctx.replyWithPhoto(startFileId, extra);
+		} else {
+			const message = await ctx.replyWithPhoto({ source: 'main.jpg' }, extra);
+
+			const photoId = message?.photo.length && message?.photo[message?.photo.length - 1].file_id;
+
+			startFileId = photoId;
+		}
+
 		// else return ctx.editMessageText(text, extra);
 	} catch (error) {
 		console.error(error);
